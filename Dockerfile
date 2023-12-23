@@ -1,39 +1,37 @@
 # Use the official Ubuntu image as the base image
 FROM ubuntu:latest
 
-# Set environment variables
+# Set environment variables to avoid interactive installation prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update the package repository and install necessary tools
+# Install necessary packages
 RUN apt-get update && \
     apt-get install -y \
     sudo \
+    x11vnc \
+    xvfb \
+    fluxbox \
     wget \
-    gnupg
+    net-tools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install RustDesk
-RUN wget https://rustdesk.com/deb/rustdesk-amd64.deb && \
-    dpkg -i rustdesk-amd64.deb
+# Set up root access with password 'root'
+RUN useradd -ms /bin/bash user && \
+    echo 'user:root' | chpasswd && \
+    adduser user sudo
 
-# Clean up unnecessary files
-RUN rm rustdesk-amd64.deb && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create a user with sudo privileges (you can customize the username and password)
-RUN useradd -m user && \
-    echo "user:user" | chpasswd && \
-    usermod -aG sudo user
-
-# Set up sudo without a password prompt for the user
-RUN echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Switch to the created user
+# Set up VNC server
 USER user
+WORKDIR /home/user
 
-# Expose the default RustDesk port
-EXPOSE 6666
+# Download noVNC for accessing VNC server through a web browser
+RUN wget -qO- https://github.com/novnc/noVNC/archive/master.tar.gz | tar xz --strip 1 && \
+    wget -qO- https://github.com/novnc/websockify/archive/master.tar.gz | tar xz --strip 1 && \
+    chmod +x -v noVNC/utils/*.sh
 
-# Start RustDesk
-CMD ["rustdesk"]
+# Expose VNC port
+EXPOSE 5900
+
+# Set up entry point
+CMD ["bash", "-c", "x11vnc -forever -usepw -create"]
